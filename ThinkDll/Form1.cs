@@ -1,49 +1,85 @@
 ﻿/*
-@author
+@author C.Y. Fang
  */
 
 using System;
-using System.Collections.Generic;
+using System.Windows;
 using System.ComponentModel;
-using System.Data;
 using System.Drawing;
-using System.Linq;
-using System.Runtime.InteropServices;
-using System.Text;
 using System.Windows.Forms;
 using ZedGraph;
+using MySql.Data.MySqlClient;
+using System.IO.Ports;
+using System.Data;
+using System.Threading;
+using System.Linq;
 
 namespace ThinkDll
 {
-    public partial class Form1 : Form
+    public partial class DrawPlut : Form
     {
-        //初始化
+        /// <summary>
+        /// 初始化
+        /// </summary>
         private static bool isInit = false;
 
-        //連接ID
+        /// <summary>
+        /// 連接ID
+        /// </summary>
         private static int connectionId = 0;
 
-        //Com Port Name
-        private static String comPortName = "\\\\.\\COM4";
+        /// <summary>
+        /// Com Port Name
+        /// </summary>
+        private String comPortName
+        {
+            get { return "\\\\.\\" + comboBox1.SelectedItem.ToString(); }
+        }
 
-        //Err Code
+
+
+        /// <summary>
+        /// Err Code
+        /// </summary>
         private static int errCode = 0;
 
-        //信號
+        /// <summary>
+        /// 信號
+        /// </summary>
         private static double poorSignal, battery;
 
         /*Chart*/
 
-        // private static double delta = 0, theta = 0, lowAlpha = 0, highAlpha = 0, lowBeta = 0, highBeta = 0, lowGamma = 0, highGamma = 0;
-        private static double[] array = new double[8];
+        // private static double delta = 0, theta = 0, lowAlpha = 0, highAlpha = 0, lowBeta = 0, highBeta = 0, lowGamma = 0, highGamma = 0, Attention=0, Meditation=0 
+        private static double[] array = new double[10];
 
-        //X軸
-        private static int[] x = new int[] { 1, 2, 3, 4, 5, 6, 7, 8 };
+        /// <summary>
+        /// X軸
+        /// </summary>
 
-        //點清單
+        private static int[] x = new int[] { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 };
+        /// <summary>
+        /// 使用者名稱
+        /// </summary>
+        private string name { get { return textBoxName.Text; } }
+
+        /// <summary>
+        /// 點清單
+        /// </summary>
         private static PointPairList list = new PointPairList();
+        
+        /// <summary>
+        /// DB Class
+        /// </summary>
+        private static MyDB db = new MyDB();
 
-        public Form1()
+        private             //X Label
+            String[] xLabel = new String[] { "Delta", "Theta", "Low Alpha", "High Alpha", 
+                "Low Beta", "High Beta", "Low Gamma", "High Gamma", "Attention","Meditation" };
+
+        private int[] points; 
+
+        public DrawPlut()
         {
             InitializeComponent();
         }
@@ -51,10 +87,11 @@ namespace ThinkDll
         private void Form1_Load(object sender, EventArgs e)
         {
             //避免不同執行緒呼叫From元件出問題
-            Form1.CheckForIllegalCrossThreadCalls = false;
+            DrawPlut.CheckForIllegalCrossThreadCalls = false;
 
             //Initialize
-            init();
+            SetComPort();
+            Init();
         }
 
         private void button_Stop_Click(object sender, EventArgs e)
@@ -62,6 +99,10 @@ namespace ThinkDll
             //如果多執行緒正在處理
             if (this.backgroundWorker.IsBusy)
             {
+                db.Close();
+
+                checkedListBox1.Enabled = true;
+                
                 //尚未初始化
                 isInit = false;
 
@@ -70,19 +111,82 @@ namespace ThinkDll
 
                 //取消非同步
                 this.backgroundWorker.CancelAsync();
+                
             }
+        }
+
+        private int [] GetCBSelect()
+        {
+            int sum = 0;
+
+            for (int i = 0; i < checkedListBox1.Items.Count; i++)
+                if (checkedListBox1.GetItemChecked(i))
+                    sum++;
+
+            if (sum == 0)
+                return new int[1];
+
+            int [] temp = new int[sum];
+            sum = 0;
+            for (int i = 0; i < checkedListBox1.Items.Count; i++)
+                if (checkedListBox1.GetItemChecked(i))
+                {
+                    temp[sum] = i;
+                    sum++;
+                }
+
+            return temp;
         }
 
         private void button_Start_Click(object sender, EventArgs e)
         {
+            points = GetCBSelect();
+            string[] label = new string[points.Length];
+
+
+            for (int i = 0; i < points.Length; i++)
+                label[i] = xLabel[points[i]];
+
+            //設定X Label
+            this.zg1.GraphPane.XAxis.Scale.TextLabels = label;
+            //改變圖片
+            this.zg1.AxisChange();
+            //設定X種類
+            this.zg1.GraphPane.XAxis.Type = AxisType.Text;
+            //設定X Label大小
+            this.zg1.GraphPane.XAxis.Scale.FontSpec.Size = 8;
+
+            db.Open();
+            checkedListBox1.Enabled = false;
             this.backgroundWorker.WorkerSupportsCancellation = true;
             this.backgroundWorker.DoWork += new DoWorkEventHandler(DoWorkEventHandler);
             this.backgroundWorker.RunWorkerAsync(0);
         }
 
-        private void init()
+        private void Form1_FormClosing(object sender, FormClosingEventArgs e)
         {
-            array = new double[8];
+            db.Close();
+        }
+
+        /// <summary>
+        /// get com port added for the combobox list
+        /// </summary>
+        private void SetComPort()
+        {
+
+            foreach (string com in SerialPort.GetPortNames())
+            {
+                comboBox1.Items.Add(com);
+            }
+
+            comboBox1.SelectedIndex = 0;
+        }
+
+        private void Init()
+        {
+            array = new double[10];
+
+
             this.zg1.GraphPane.CurveList.Clear();
             this.zg1.GraphPane.GraphObjList.Clear();
             list = new PointPairList();
@@ -91,18 +195,6 @@ namespace ThinkDll
             this.zg1.GraphPane.Title.IsVisible = false; //主標題是否 顯示
             this.zg1.GraphPane.Title.FontSpec.FontColor = Color.Green;
             this.zg1.GraphPane.XAxis.Title.IsVisible = false;
-
-            //X Label
-            String[] xLabel = new String[] { "Delta", "Theta", "Low Alpha", "High Alpha", "Low Beta", "High Beta", "Low Gamma", "High Gamma" };
-
-            //設定X Label
-            this.zg1.GraphPane.XAxis.Scale.TextLabels = xLabel;
-
-            //設定X種類
-            this.zg1.GraphPane.XAxis.Type = AxisType.Text;
-
-            //設定X Label大小
-            this.zg1.GraphPane.XAxis.Scale.FontSpec.Size = 8;
 
             //設定Y Label大小
             this.zg1.GraphPane.YAxis.Scale.FontSpec.Size = 5;
@@ -183,6 +275,7 @@ namespace ThinkDll
                                 Think.DATA_DELTA);
                     }
 
+
                     if (Think
                             .TG_GetValueStatus(connectionId, Think.DATA_THETA) != 0)
                     {
@@ -237,6 +330,19 @@ namespace ThinkDll
                         array[7] = Think.TG_GetValue(connectionId,
                                 Think.DATA_GAMMA2);
                     }
+                    if (Think.TG_GetValueStatus(connectionId, Think.DATA_ATTENTION)!=0)
+                    {
+                        array[8] = Think.TG_GetValue(connectionId,
+                                Think.DATA_ATTENTION);
+                    }
+
+                    if (Think.TG_GetValueStatus(connectionId, Think.DATA_MEDITATION) != 0)
+                    {
+                        array[9] = Think.TG_GetValue(connectionId,
+      Think.DATA_MEDITATION);
+                    }
+
+
 
                     if (Think.TG_GetValueStatus(connectionId, Think.DATA_BATTERY) != 0)
                     {
@@ -245,11 +351,18 @@ namespace ThinkDll
                         setBarBattery(battery);
                     }
 
+                    string temp = string.Format(MyDB.sql, name, DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"), 
+                            array[0].ToString(), array[1].ToString(), array[2].ToString(),
+                        array[3].ToString(), array[4].ToString(), array[5].ToString(), array[6].ToString(),
+                        array[7].ToString(), array[8].ToString(), array[9].ToString());
+                    db.Insert(temp);
+
                     //清除原先清單資料
                     list.Clear();
-                    for (int i = 0; i < 8; i++)
+
+                    for (int i = 0; i < points.Length; i++)
                     {
-                        list.Add(x[i], array[i]);
+                        list.Add((i + 1), array[i]);
                     }
 
                     //改變目前數值
@@ -259,19 +372,18 @@ namespace ThinkDll
                     this.zg1.RestoreScale(this.zg1.GraphPane);
                 }
             }
+
+            db.Close();
         }
 
         private void DoWorkEventHandler(object sender, DoWorkEventArgs e)
         {
             this.backgroundWorker.WorkerReportsProgress = true;
-            this.backgroundWorker.ProgressChanged += new ProgressChangedEventHandler(ProgressChangedEventHandler);
             this.backgroundWorker.RunWorkerCompleted += new RunWorkerCompletedEventHandler(RunWorkerCompletedEventHandler);
             DoAdd((BackgroundWorker)sender, e);
         }
 
-        private void ProgressChangedEventHandler(object sender, ProgressChangedEventArgs e)
-        {
-        }
+
 
         private void RunWorkerCompletedEventHandler(object sender, RunWorkerCompletedEventArgs e)
         {
@@ -290,5 +402,102 @@ namespace ThinkDll
             //設定電池電量
             this.progressBarBattery.Value = (int)data;
         }
+
+        protected class MyDB
+        {
+            /// <summary>
+            /// MySQL Connection
+            /// </summary>
+            private MySqlConnection connection;
+
+            private Thread thread;
+
+            /// <summary>
+            /// Connection String
+            /// </summary>
+            private String connStr = "server=127.0.0.1;user=root;database=thinkgear;port=3306;password=123456789;charset=utf8;";
+            
+            /// <summary>
+            /// Insert sql
+            /// </summary>
+            public const String sql = @"INSERT INTO `data` (`Name`, `Time`, `Delta`, `Theta`, `Low Alpha`, `High Alpha`, `Low Beta`, `High Beta`, `Low Gamma`, `High Gamma`, `Attention`, `Meditation`) VALUES ({0}, {1}, {2}, {3}, {4}, {5}, {6}, {7}, {8}, {9}, {10}, {11});";
+            
+            /// <summary>
+            /// Insert Type
+            /// </summary>
+            private  MySqlDbType[] parsTypes = new MySqlDbType[] {MySqlDbType.Text, MySqlDbType.DateTime, MySqlDbType.Int32, MySqlDbType.Int32, MySqlDbType.Int32, MySqlDbType.Int32, MySqlDbType.Int32 
+            , MySqlDbType.Int32, MySqlDbType.Int32, MySqlDbType.Int32, MySqlDbType.Int32, MySqlDbType.Int32};
+            
+            /// <summary>
+            /// Alias
+            /// </summary>
+            private String[] alias = new String[] {"?Name","?Time", "?Delta", "?Theta", "?LowAlpha", "?HighAlpha", 
+                "?LowBeta", "?HighBeta", "?LowGamma", "?HighGamma", "?Attention", "?Meditation"};
+            
+            /// <summary>
+            /// MySQL Command
+            /// </summary>
+            private MySqlCommand cmd;
+
+            /// <summary>
+            /// Constructor
+            /// </summary>
+            public MyDB()
+            {
+                this.connection = new MySqlConnection(connStr);
+            }
+
+            /// <summary>
+            /// Open MySQL
+            /// </summary>
+            public void Open()
+            {
+                if (connection.ConnectionString != null
+                   && connection.ConnectionString != string.Empty
+                    && connection.State != ConnectionState.Executing)
+                {
+                    this.connection.Open();
+                    this.cmd = NewCommand();
+                }
+            }
+
+            /// <summary>
+            /// Close MySQL
+            /// </summary>
+            public void Close()
+            {
+                if (cmd != null)
+                    this.cmd.Cancel();
+                this.connection.Close();
+            }
+
+            /// <summary>
+            /// Insert data for the database
+            /// database name is thinkgear
+            /// </summary>
+            /// <param name="args">data</param>
+            public void Insert(string sql)
+            {
+                cmd = NewCommand();
+                thread = new Thread(new ThreadStart(InsertSql));
+                thread.Start();
+            }
+
+            public void InsertSql()
+            {
+                cmd.ExecuteNonQuery();
+            }
+
+            /// <summary>
+            /// Get new MySqlCommand
+            /// </summary>
+            /// <returns>MySqlCommand</returns>
+            protected MySqlCommand NewCommand()
+            {
+                return new MySqlCommand(sql, connection);
+            }
+
+        }
+
     }
 }

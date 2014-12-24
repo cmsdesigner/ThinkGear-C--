@@ -30,43 +30,43 @@ namespace ThinkDll
         public static int DATA_GAMMA1 = 11;
         public static int DATA_GAMMA2 = 12;
 
-        [DllImport("thinkgear.dll")]
+        [DllImport("thinkgear.dll", CallingConvention = CallingConvention.Cdecl)]
         public static extern int TG_GetDriverVersion();
 
-        [DllImport("thinkgear.dll")]
+        [DllImport("thinkgear.dll", CallingConvention = CallingConvention.Cdecl)]
         public static extern int TG_GetNewConnectionId();
 
-        [DllImport("thinkgear.dll")]
+        [DllImport("thinkgear.dll", CallingConvention = CallingConvention.Cdecl)]
         public static extern int TG_SetStreamLog(int connectionId, String filename);
 
-        [DllImport("thinkgear.dll")]
+        [DllImport("thinkgear.dll", CallingConvention = CallingConvention.Cdecl)]
         public static extern int TG_SetDataLog(int connectionId, String filename);
 
-        [DllImport("thinkgear.dll")]
+        [DllImport("thinkgear.dll", CallingConvention=CallingConvention.Cdecl)]
         public static extern int TG_Connect(int connectionId, String serialPortName, int serialBaudrate, int serialDataFormat);
 
-        [DllImport("thinkgear.dll")]
+        [DllImport("thinkgear.dll", CallingConvention = CallingConvention.Cdecl)]
         public static extern int TG_ReadPackets(int connectionId, int numPackets);
 
-        [DllImport("thinkgear.dll")]
+        [DllImport("thinkgear.dll", CallingConvention = CallingConvention.Cdecl)]
         public static extern double TG_GetValue(int connectionId, int dataType);
 
-        [DllImport("thinkgear.dll")]
+        [DllImport("thinkgear.dll", CallingConvention = CallingConvention.Cdecl)]
         public static extern int TG_GetValueStatus(int connectionId, int dataType);
 
-        [DllImport("thinkgear.dll")]
+        [DllImport("thinkgear.dll", CallingConvention = CallingConvention.Cdecl)]
         public static extern int TG_SendByte(int connectionId, int b);
 
-        [DllImport("thinkgear.dll")]
+        [DllImport("thinkgear.dll", CallingConvention = CallingConvention.Cdecl)]
         public static extern int TG_SetBaudrate(int connectionId, int serialBaudrate);
 
-        [DllImport("thinkgear.dll")]
+        [DllImport("thinkgear.dll", CallingConvention = CallingConvention.Cdecl)]
         public static extern int TG_SetDataFormat(int connectionId, int serialDataFormat);
 
-        [DllImport("thinkgear.dll")]
+        [DllImport("thinkgear.dll", CallingConvention = CallingConvention.Cdecl)]
         public static extern void TG_Disconnect(int connectionId);
 
-        [DllImport("thinkgear.dll")]
+        [DllImport("thinkgear.dll", CallingConvention = CallingConvention.Cdecl)]
         public static extern void TG_FreeConnection(int connectionId);
     }
 }
